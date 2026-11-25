@@ -4,6 +4,7 @@
   "description": "Desktop wrapper for kodme.ru",
   "main": "main.js",
   "homepage": "https://kodme.ru",
+  "desktopName": "kodme-desktop.desktop",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder"
@@ -28,7 +29,8 @@
         "AppImage"
       ],
       "category": "Internet",
-      "maintainer": "Bukreev"
+      "maintainer": "Bukreev",
+      "syncDesktopName": true
     },
     "win": {
       "target": "nsis"

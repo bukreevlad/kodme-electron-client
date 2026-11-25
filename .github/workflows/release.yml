@@ -67,7 +67,7 @@ jobs:
       # Сборка Linux-дистрибутивов в dist/
       - name: Сборка (Linux)
         if: steps.existing.outputs.exists == 'false'
-        run: npx electron-builder --linux deb rpm AppImage
+        run: npx electron-builder --linux deb rpm AppImage --publish never
 
       # Релиз с версией из package.json + ассеты
       - name: Публикация релиза
@@ -111,7 +111,7 @@ jobs:
         run: npm install
 
       - name: Сборка (Windows)
-        run: npx electron-builder --win nsis
+        run: npx electron-builder --win nsis --publish never
 
       # Релиз уже создан linux-джобой — просто добавляем установщик
       - name: Загрузка ассета в релиз
