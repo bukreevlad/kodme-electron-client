@@ -1,0 +1,122 @@
+# Релиз десктоп-клиента: сборка дистрибутивов и публикация ассетов релиза.
+#
+# Запускается на каждый push в main публичного репозитория: ветку наполняет
+# и версию в package.json перед пушем задаёт скрипт публикации.
+#
+# Ассеты: AppImage, deb, rpm (Linux) и установщик NSIS (Windows).
+# Если релиз с версией уже существует — ничего не собирается и не
+# перезаписывается.
+
+name: Релиз десктоп-клиента
+
+on:
+  push:
+    branches: [main]
+
+# На запись в репозиторий: создание релиза и загрузка ассетов через GITHUB_TOKEN
+permissions:
+  contents: write
+
+jobs:
+  # Linux: AppImage, deb, rpm — создаёт релиз с ассетами
+  linux:
+    runs-on: ubuntu-latest
+    outputs:
+      # Передаётся windows-джобе: релиз этой версии уже существовал до прогона?
+      exists: ${{ steps.existing.outputs.exists }}
+
+    steps:
+      # Исходники репозитория
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node.js — зависимости и electron-builder
+      - name: Установка Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Версия релиза из package.json
+      - name: Версия из package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Релиз этой версии уже есть — сборка пропускается, ассеты не трогаем
+      - name: Проверка существования релиза
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  Релиз v${{ steps.version.outputs.version }} уже существует — сборка пропускается."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # npm install, а не npm ci: версия бампается без regen lock-файла
+      - name: Установка зависимостей
+        if: steps.existing.outputs.exists == 'false'
+        run: npm install
+
+      # Сборке rpm-пакета нужен rpmbuild — в ubuntu-latest его нет
+      - name: Установка rpm-инструментов
+        if: steps.existing.outputs.exists == 'false'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      # Сборка Linux-дистрибутивов в dist/
+      - name: Сборка (Linux)
+        if: steps.existing.outputs.exists == 'false'
+        run: npx electron-builder --linux deb rpm AppImage
+
+      # Релиз с версией из package.json + ассеты
+      - name: Публикация релиза
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "Сборка Kodme Desktop ${{ steps.version.outputs.version }} (Linux: AppImage, deb, rpm)."
+            echo "Источники — коммит $(git rev-parse --short HEAD)."
+          } > release_body.md
+          gh release create "v${{ steps.version.outputs.version }}" \
+            dist/*.AppImage dist/*.deb dist/*.rpm \
+            --title "Десктоп-клиент ${{ steps.version.outputs.version }}" \
+            --notes-file release_body.md
+
+  # Windows: NSIS-установщик — догружает ассет в релиз,
+  # созданный linux-джобой (поэтому needs + outputs.exists)
+  windows:
+    needs: linux
+    if: needs.linux.outputs.exists == 'false'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Установка Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Версия из package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Установка зависимостей
+        run: npm install
+
+      - name: Сборка (Windows)
+        run: npx electron-builder --win nsis
+
+      # Релиз уже создан linux-джобой — просто добавляем установщик
+      - name: Загрузка ассета в релиз
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release upload "v$VERSION" dist/*.exe

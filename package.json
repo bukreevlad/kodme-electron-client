@@ -1,0 +1,37 @@
+{
+  "name": "kodme-desktop",
+  "version": "1.0.0",
+  "description": "Desktop wrapper for kodme.ru",
+  "main": "main.js",
+  "homepage": "https://kodme.ru",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "keywords": [],
+  "author": "Bukreev",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^44.9.2",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "ru.kodme.desktop",
+    "productName": "Kodme",
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "rpm",
+        "AppImage"
+      ],
+      "category": "Internet",
+      "maintainer": "Bukreev"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
